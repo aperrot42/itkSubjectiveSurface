@@ -19,6 +19,7 @@ SET( CONFOREG_EXE_ITK_SRC
 #  RelabelLabelImage
   Subjective
   Subjective2D
+  Subjective2Dopt
   )
 
 FOREACH( var ${CONFOREG_EXE_ITK_SRC} )

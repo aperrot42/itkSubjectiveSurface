@@ -18,20 +18,21 @@
 
 int main( int argc, char ** argv )
 {
-  if ( argc < 7 )
+  if ( argc < 8 )
     {
     std::cerr << "Missing parameters. " << std::endl;
     std::cerr << "Usage: " << std::endl;
     std::cerr << argv[0]
-              << " inputPhy(image) inputEdge(image) nu rho deltat curavtureFactor outputImageFile(image)"
+              << " inputPhy(image) inputEdge(image) nu rho deltat curavtureFactor NbIter outputImageFile(image)"
               << std::endl;
     return -1;
     }
-
+  // arguments reading and parsing
   double nu = atof(argv[3]);
   double rho = atof(argv[4]);
   double deltat = atof(argv[5]);
   double curvatureFactor = atof(argv[6]);
+  int nbiter = atoi(argv[7]);
 
 
 
@@ -177,7 +178,7 @@ int main( int argc, char ** argv )
   std::cout << "begin of iteration loop" << std::endl;
 #endif
 
-  for (int iter = 0; iter<10000; ++iter)
+  for (int iter = 0; iter<nbiter; ++iter)
     {
     // input iterator (on phy)
     NeighborhoodIteratorType::RadiusType radius;
@@ -188,8 +189,9 @@ int main( int argc, char ** argv )
     // output iterator ( on phy(t+1) )
     IteratorType out(outputPhy, inputPhy->GetRequestedRegion());
 
-    if (iter == 5000)
-    curvatureFactor = curvatureFactor/1000000; //to be deleted
+    // we change the evolution of the surface from graph to level set
+    if (iter == nbiter/2)
+    curvatureFactor = curvatureFactor/1000000;
 
 
     // one iteration :
@@ -222,17 +224,19 @@ int main( int argc, char ** argv )
 
 
       // evolution equation
-
+        // Hg = g*H (with H mean curvature of graph of phy)
       Hg = edgit.Get() * (   (curvatureFactor + dxsquare)*d2y
                            + (curvatureFactor + dysquare)*d2x
                            - 2 * (dx*dy*dxy))
-           / (curvatureFactor + dxsquare + dysquare ) ;//ok
+           / (curvatureFactor + dxsquare + dysquare ) ;
 
+        // grad(g)
       edgederivVector = edgderivit.Get();
 
         // upwind differntiation term : grad(I).*grad(g)
       Upwind =   std::min(-edgederivVector[0],(double)0.)*dplusx + std::max(-edgederivVector[0],(double)0.)*dminusx
                + std::min(-edgederivVector[1],(double)0.)*dplusy + std::max(-edgederivVector[1],(double)0.)*dminusy;
+
 
       // value of phy(t+1)
       nextPhy = it.GetCenterPixel()+deltat*(nu*Hg-rho*Upwind);
@@ -243,10 +247,6 @@ int main( int argc, char ** argv )
     ImageType::Pointer tempImagePoint = inputPhy;
     inputPhy = outputPhy;
     outputPhy = tempImagePoint;
-
-    if (iter < 9999)
-    outputPhy->FillBuffer(0);
-
 
 #ifdef _DEBUG
     std::cout << "inputPhy reference count : " << inputPhy->GetReferenceCount() << std::endl;
@@ -278,7 +278,7 @@ int main( int argc, char ** argv )
   rescaler->SetInput(outputPhy);
 
   WriterType::Pointer writer = WriterType::New();
-  writer->SetFileName( argv[7] );
+  writer->SetFileName( argv[8] );
   writer->SetInput(rescaler->GetOutput());
   try
     {
