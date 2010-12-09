@@ -8,6 +8,7 @@
 #include "itkRescaleIntensityImageFilter.h"
 
 #include "itkImageConstIterator.h"
+#include "itkConstantBoundaryCondition.h"
 #include "itkConstNeighborhoodIterator.h"
 #include "itkImageRegionIterator.h"
 
@@ -51,7 +52,8 @@ int main( int argc, char ** argv )
 
 
   // neighborhood iterators
-  typedef itk::ConstNeighborhoodIterator< ImageType > NeighborhoodIteratorType;
+  typedef itk::ConstantBoundaryCondition< ImageType >  BoundaryConditionType;
+  typedef itk::ConstNeighborhoodIterator< ImageType, BoundaryConditionType > NeighborhoodIteratorType;
   typedef itk::ImageRegionIterator< ImageType>        IteratorType;
   // simple iterators
   typedef itk::ImageRegionConstIterator< ImageType > ConstIteratorType;
