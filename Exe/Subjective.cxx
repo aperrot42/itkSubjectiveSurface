@@ -1,7 +1,7 @@
+
 #if defined(_MSC_VER)
 #pragma warning ( disable : 4786 )
 #endif
-
 
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
@@ -16,12 +16,8 @@
 
 #include "math.h"
 
-
 int main( int argc, char ** argv )
 {
-
-
-  //%%%%%%%%%%%%%%%%%%% ARGUMENTS PARSING %%%%%%%%%%%%%%%%%%%
 
   if ( argc < 8 )
     {
@@ -42,14 +38,10 @@ int main( int argc, char ** argv )
   int nbiter = atoi(argv[7]);
 
 
-
-
-
-
   //%%%%%%%%%%%%%%%%%%% TYPEDEFS %%%%%%%%%%%%%%%%%%%
 
   // dimension of input image (and phi)
-  const   unsigned int   Dimension = 2;
+  const   unsigned int   Dimension = 3;
 
   // scalar field type
   typedef double                              PixelType;
@@ -88,6 +80,7 @@ int main( int argc, char ** argv )
 
 
 
+
   //%%%%%%%%%%%%%%%%%%% INPUTS READING AND RESCALING %%%%%%%%%%%%%%%%%%%
 
   // reading phi0, store the rescaled version in inputphi
@@ -102,7 +95,7 @@ int main( int argc, char ** argv )
     std::cout << "ExceptionObject caught !" << std::endl;
     std::cout << err << std::endl;
     return -1;
-    }  
+    }
 
   // rescale phi0
   RescaleFilterType::Pointer rescalerInputPhy = RescaleFilterType::New();
@@ -171,42 +164,51 @@ int main( int argc, char ** argv )
   outputphi->SetSpacing(inputphi->GetSpacing());
   outputphi->Allocate();
 
-  // offsets definition for neighborhood computations :
-  NeighborhoodIteratorType::OffsetType minusx = {{-1,0}};
-  NeighborhoodIteratorType::OffsetType plusx = {{1,0}};
-  NeighborhoodIteratorType::OffsetType minusy = {{0,-1}};
-  NeighborhoodIteratorType::OffsetType plusy = {{0,1}};
-  NeighborhoodIteratorType::OffsetType plusxplusy = {{1,1}};
-  NeighborhoodIteratorType::OffsetType minusxminusy = {{-1,-1}};
-  NeighborhoodIteratorType::OffsetType plusxminusy = {{1,-1}};
-  NeighborhoodIteratorType::OffsetType minusxplusy = {{-1,1}};
+
+  // offsets definition :
+  NeighborhoodIteratorType::OffsetType minusx = {{-1,0,0}};
+  NeighborhoodIteratorType::OffsetType plusx = {{1,0,0}};
+
+  NeighborhoodIteratorType::OffsetType minusy = {{0,-1,0}};
+  NeighborhoodIteratorType::OffsetType plusy = {{0,1,0}};
+
+  NeighborhoodIteratorType::OffsetType minusz = {{0,0,-1}};
+  NeighborhoodIteratorType::OffsetType plusz = {{0,0,1}};
+
+
+  NeighborhoodIteratorType::OffsetType plusxplusy = {{1,1,0}};
+  NeighborhoodIteratorType::OffsetType minusxminusy = {{-1,-1,0}};
+  NeighborhoodIteratorType::OffsetType plusxminusy = {{1,-1,0}};
+  NeighborhoodIteratorType::OffsetType minusxplusy = {{-1,1,0}};
+
+  NeighborhoodIteratorType::OffsetType plusxplusz = {{1,0,1}};
+  NeighborhoodIteratorType::OffsetType minusxminusz = {{-1,0,-1}};
+  NeighborhoodIteratorType::OffsetType plusxminusz = {{1,0,-1}};
+  NeighborhoodIteratorType::OffsetType minusxplusz = {{-1,0,1}};
+
+  NeighborhoodIteratorType::OffsetType plusyplusz = {{0,1,1}};
+  NeighborhoodIteratorType::OffsetType minusyminusz = {{0,-1,-1}};
+  NeighborhoodIteratorType::OffsetType plusyminusz = {{0,1,-1}};
+  NeighborhoodIteratorType::OffsetType minusyplusz = {{0,-1,1}};
+
 
   // get the spacing in x and y for derivatives computations
   ImageType::SpacingType inputSpacing = reader->GetOutput()->GetSpacing();
-  double spacingx = inputSpacing[0];
-  double spacingy = inputSpacing[1];
+  float spacingx = inputSpacing[0];
+  float spacingy = inputSpacing[1];
+  float spacingz = inputSpacing[2];
 
   // temporary variables for the iterations
-    //derivatives
-  PixelType dplusx, dminusx, dplusy, dminusy,
-            dx, dy,
-            d2x, d2y,
-            dxy,
-            dxsquare, dysquare;
-    //equation members
+  PixelType dplusx, dminusx, dplusy, dminusy, dplusz, dminusz,
+            dx, dy, dz,
+            d2x, d2y, d2z,
+            dxy, dxz, dyz,
+            dxsquare, dysquare, dzsquare;
+  //equation members
   PixelType Hg, Upwind, nextphi;
 
-#ifdef _DEBUG
-  // make sure smart pointers are smart
-  std::cout << "inputphi reference count : "
-            << inputphi->GetReferenceCount()
-            << std::endl;
-  std::cout << "output reference count : "
-            << outputphi->GetReferenceCount()
-            << std::endl;
-  // see when we start iterating
+
   std::cout << "begin of iteration loop" << std::endl;
-#endif
 
   for (int iter = 0; iter<nbiter; ++iter)
     {
@@ -224,113 +226,131 @@ int main( int argc, char ** argv )
     curvatureFactor = curvatureFactor/1000000;
 
 
-    // one iteration :
-    for ( it.GoToBegin(), edgit.GoToBegin(), edgderivit.GoToBegin(),
-            out.GoToBegin();
-          !it.IsAtEnd();
-          ++it, ++out, ++edgderivit, ++edgit )
-      {
 
-      // derivatives computation :
-      dminusx = (it.GetCenterPixel()-it.GetPixel(minusx))/spacingx;
-      dminusy = (it.GetCenterPixel()-it.GetPixel(minusy))/spacingy;
+  // one iteration :
+  for (it.GoToBegin(),edgit.GoToBegin(),edgderivit.GoToBegin(), out.GoToBegin();
+       !it.IsAtEnd();
+       ++it, ++out, ++edgderivit, ++edgit)
+    {
 
-      dplusx = (it.GetPixel(plusx)-it.GetCenterPixel())/spacingx;
-      dplusy = (it.GetPixel(plusy)-it.GetCenterPixel())/spacingy;
-
-      dx = (it.GetPixel(plusx) - it.GetPixel(minusx))/(2*spacingx);
-      dy = (it.GetPixel(plusy) - it.GetPixel(minusy))/(2*spacingy);
-
-      d2x = (dplusx-dminusx)/spacingx;
-      d2y = (dplusy-dminusy)/spacingy;
-
-      dxy = (it.GetPixel(plusxplusy)
-             + it.GetPixel(minusxminusy)
-             - it.GetPixel(plusxminusy)
-             - it.GetPixel(minusxplusy))
-            / (4*spacingx*spacingy);
-
-      dxsquare = dx*dx;
-      dysquare = dy*dy;
+    // derivatives computation :
+    dminusx = (it.GetCenterPixel()-it.GetPixel(minusx))/spacingx;
+    dminusy = (it.GetCenterPixel()-it.GetPixel(minusy))/spacingy;
+    dminusz = (it.GetCenterPixel()-it.GetPixel(minusz))/spacingz;
 
 
-      // evolution equation
-        // Hg = g*H (with H mean curvature of graph of phi)
-      Hg = edgit.Get() * (   (curvatureFactor + dxsquare)*d2y
-                           + (curvatureFactor + dysquare)*d2x
-                           - 2 * (dx*dy*dxy))
-           / (curvatureFactor + dxsquare + dysquare ) ;
-
-        // grad(g)
-      edgederivVector = edgderivit.Get();
-
-        // upwind differntiation term : grad(I).*grad(g)
-      Upwind = std::min(-edgederivVector[0],(double)0.)*dplusx
-             + std::max(-edgederivVector[0],(double)0.)*dminusx
-             + std::min(-edgederivVector[1],(double)0.)*dplusy
-             + std::max(-edgederivVector[1],(double)0.)*dminusy;
+    dplusx = (it.GetPixel(plusx)-it.GetCenterPixel())/spacingx;
+    dplusy = (it.GetPixel(plusy)-it.GetCenterPixel())/spacingy;
+    dplusz = (it.GetPixel(plusz)-it.GetCenterPixel())/spacingz;
 
 
-      // value of phi(t+1)
-      nextphi = it.GetCenterPixel()+deltat*(nu*Hg-rho*Upwind);
+    dx = (it.GetPixel(plusx) - it.GetPixel(minusx))/(2*spacingx);
+    dy = (it.GetPixel(plusy) - it.GetPixel(minusy))/(2*spacingy);
+    dz = (it.GetPixel(plusz) - it.GetPixel(minusz))/(2*spacingz);
 
-      out.Set(nextphi);
-      }
-    // input is now output
-      //(smart pointer dereference automatically
-      // the memory previously pointed by inputphi,
-      // and tempImagePoint gets out of scope at the end of the iteration)
-    ImageType::Pointer tempImagePoint = inputphi;
-    inputphi = outputphi;
-    outputphi = tempImagePoint;
 
-#ifdef _DEBUG
-    // make sure smart pointers are smart
-    std::cout << "inputphi reference count : "
-              << inputphi->GetReferenceCount()
-              << std::endl;
-    std::cout << "temp reference count : "
-              << tempImagePoint->GetReferenceCount()
-              << std::endl;
-    std::cout << "output reference count : "
-              << outputphi->GetReferenceCount()
-              << std::endl;
-#endif
+    d2x = dplusx-dminusx;
+    d2y = dplusy-dminusy;
+    d2z = dplusz-dminusz;
+
+
+    dxy = (it.GetPixel(plusxplusy)
+           + it.GetPixel(minusxminusy)
+           - it.GetPixel(plusxminusy)
+           - it.GetPixel(minusxplusy))
+          / (4*spacingx*spacingy);
+    dxz = (it.GetPixel(plusxplusz)
+           + it.GetPixel(minusxminusz)
+           - it.GetPixel(plusxminusz)
+           - it.GetPixel(minusxplusz))
+          / (4*spacingx*spacingz);
+    dyz = (it.GetPixel(plusyplusz)
+          + it.GetPixel(minusyminusz)
+          - it.GetPixel(plusyminusz)
+          - it.GetPixel(minusyplusz))
+          / (4*spacingy*spacingz);
+
+
+    dxsquare = dx*dx;
+    dysquare = dy*dy;
+    dzsquare = dz*dz;
+
+
+    // evolution equation
+    Hg = edgit.Get() * (  (curvatureFactor + dxsquare + dysquare)*d2z
+                         +(curvatureFactor + dxsquare + dzsquare)*d2y
+                         +(curvatureFactor + dzsquare + dysquare)*d2x
+                         -2 * (dx*dz*dxz+dx*dy*dxy+dy*dz*dyz))
+            / (curvatureFactor + dxsquare + dysquare + dzsquare) ;
+
+    edgederivVector = edgderivit.Get();
+
+    Upwind =  std::min(-edgederivVector[0],0.)*dplusx
+            + std::max(-edgederivVector[0],0.)*dminusx
+            + std::min(-edgederivVector[1],0.)*dplusy
+            + std::max(-edgederivVector[1],0.)*dminusy
+            + std::min(-edgederivVector[2],0.)*dplusz
+            + std::max(-edgederivVector[2],0.)*dminusz;
+
+    nextphi = it.GetCenterPixel()+deltat*(nu*Hg-rho*Upwind);
+
+    out.Set(nextphi);
     }
+  // input is now output
+    //(smart pointer dereference automatically
+    // the memory previously pointed by inputphi,
+    // and tempImagePoint gets out of scope at the end of the iteration)
+  ImageType::Pointer tempImagePoint = inputphi;
+  inputphi = outputphi;
+  outputphi = tempImagePoint;
 
 #ifdef _DEBUG
-  // see when we are done iterating
-  std::cout << "end of iteration loop" << std::endl;
   // make sure smart pointers are smart
   std::cout << "inputphi reference count : "
             << inputphi->GetReferenceCount()
+            << std::endl;
+  std::cout << "temp reference count : "
+            << tempImagePoint->GetReferenceCount()
             << std::endl;
   std::cout << "output reference count : "
             << outputphi->GetReferenceCount()
             << std::endl;
 #endif
+  }
+
+#ifdef _DEBUG
+// see when we are done iterating
+std::cout << "end of iteration loop" << std::endl;
+// make sure smart pointers are smart
+std::cout << "inputphi reference count : "
+          << inputphi->GetReferenceCount()
+          << std::endl;
+std::cout << "output reference count : "
+          << outputphi->GetReferenceCount()
+          << std::endl;
+#endif
 
 
-  // rescaling output (phi(t=tmax))
-  RescaleOutputFilterType::Pointer rescaler = RescaleOutputFilterType::New();
-  rescaler->SetOutputMinimum(   0 );
-  rescaler->SetOutputMaximum( 255 );
-  rescaler->SetInput(outputphi);
+// rescaling output (phi(t=tmax))
+RescaleOutputFilterType::Pointer rescaler = RescaleOutputFilterType::New();
+rescaler->SetOutputMinimum(   0 );
+rescaler->SetOutputMaximum( 255 );
+rescaler->SetInput(outputphi);
 
-  // write output in png
-  WriterType::Pointer writer = WriterType::New();
-  writer->SetFileName( argv[8] );
-  writer->SetInput(rescaler->GetOutput());
-  try
-    {
-    writer->Update();
-    }
-  catch ( itk::ExceptionObject &err)
-    {
-    std::cout << "ExceptionObject caught !" << std::endl;
-    std::cout << err << std::endl;
-    return -1;
-    }
+// write output in png
+WriterType::Pointer writer = WriterType::New();
+writer->SetFileName( argv[8] );
+writer->SetInput(rescaler->GetOutput());
+try
+  {
+  writer->Update();
+  }
+catch ( itk::ExceptionObject &err)
+  {
+  std::cout << "ExceptionObject caught !" << std::endl;
+  std::cout << err << std::endl;
+  return -1;
+  }
 
-  return 0;
+return 0;
 }

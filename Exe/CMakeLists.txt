@@ -1,7 +1,8 @@
 SET( CONFOREG_EXE_ITK_SRC
 #  Subjective
   Subjective2D
-#  Subjective2Dopt
+  Subjective2DVideo
+  Subjective
   )
 
 FOREACH( var ${CONFOREG_EXE_ITK_SRC} )
