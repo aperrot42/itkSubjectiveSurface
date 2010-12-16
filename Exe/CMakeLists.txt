@@ -6,7 +6,7 @@ SET( CONFOREG_EXE_ITK_SRC
   )
 
 FOREACH( var ${CONFOREG_EXE_ITK_SRC} )
-  ADD_EXECUTABLE( ${var} ${var} )
+  ADD_EXECUTABLE( ${var} ${var}.cxx )
   TARGET_LINK_LIBRARIES( ${var}
   ITKIO
   ITKCommon

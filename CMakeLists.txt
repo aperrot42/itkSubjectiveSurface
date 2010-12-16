@@ -1,4 +1,4 @@
-PROJECT(itkSubjectiveSurface)
+PROJECT(ITKSUBJECTIVESURFACES)
 
 # CMake >= 2.6 has to be installed (fighting for progress)
 CMAKE_MINIMUM_REQUIRED( VERSION 2.6 )
@@ -35,7 +35,7 @@ ENDIF( WIN32 )
 # all target executables will be
 # in ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 SET( CMAKE_RUNTIME_OUTPUT_DIRECTORY
-  ${SEED_BINARY_DIR}/bin
+  ${ITKSUBJECTIVESURFACES_BINARY_DIR}/bin
 )
 
 # all target static libraries will be in ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
