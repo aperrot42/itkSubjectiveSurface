@@ -30,7 +30,7 @@ int main( int argc, char ** argv )
     std::cerr << argv[0]
               << " inputphi(image) inputEdge(image)"
               << " nu rho deltat curavtureFactor NbIter"
-              << " outputImageFile(image)"
+              << " outputImageFile(image_without_extension)"
               << std::endl;
     return -1;
     }

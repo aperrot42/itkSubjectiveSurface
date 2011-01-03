@@ -111,10 +111,8 @@ int main( int argc, char ** argv )
     ImageType::IndexType idx = it.GetIndex();
     queryPoint[0] = idx[0];
     queryPoint[1] = idx[1];
-
     it.Set( distanceMetric->Evaluate( queryPoint ));
     }
-
 
   // write output
   WriterType::Pointer writer = WriterType::New();
