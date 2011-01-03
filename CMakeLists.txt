@@ -3,7 +3,7 @@ PROJECT(ITKSUBJECTIVESURFACES)
 # CMake >= 2.6 has to be installed (fighting for progress)
 CMAKE_MINIMUM_REQUIRED( VERSION 2.6 )
 
-MESSAGE( STATUS "SEEDING" )
+MESSAGE( STATUS "SUBJECTIVE SURFACES" )
 
 # On Visual Studio 8 MS deprecated C. This removes all 1.276E1265 security
 # warnings. Copied from ITK CMakeLists.
@@ -40,7 +40,7 @@ SET( CMAKE_RUNTIME_OUTPUT_DIRECTORY
 
 # all target static libraries will be in ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
 #SET( CMAKE_ARCHIVE_OUTPUT_DIRECTORY
-#  ${SEED_BINARY_DIR}/lib
+#  ${ITKSUBJECTIVESURFACES_BINARY_DIR}/lib
 #)
 
 # all shared libraries will be in ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
@@ -94,7 +94,7 @@ ENDIF( ITK_FOUND )
 #-------------------------------------------------------------------------
 # directory containing the code
 SET( ITKSUBJECTIVESURFACES_CODE_DIR
-  ${ITKSUBJECTIVESURFACES_SOURCE_DIR}/Code/
+  ${ITKSUBJECTIVESURFACES_SOURCE_DIR}/Code/Classes
 )
 
 INCLUDE_DIRECTORIES( BEFORE

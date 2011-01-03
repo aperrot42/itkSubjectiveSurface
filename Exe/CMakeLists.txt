@@ -1,12 +1,12 @@
 SET( CONFOREG_EXE_ITK_SRC
-#  Subjective
   Subjective2D
   Subjective2DVideo
   Subjective
+  Feature2D
   )
 
 FOREACH( var ${CONFOREG_EXE_ITK_SRC} )
-  ADD_EXECUTABLE( ${var} ${var}.cxx )
+  ADD_EXECUTABLE( ${var} ${var} )
   TARGET_LINK_LIBRARIES( ${var}
   ITKIO
   ITKCommon
