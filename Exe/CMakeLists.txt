@@ -3,6 +3,7 @@ SET( CONFOREG_EXE_ITK_SRC
   Subjective2DVideo
   Subjective
   Feature2D
+  Initialize2D
   )
 
 FOREACH( var ${CONFOREG_EXE_ITK_SRC} )
@@ -10,7 +11,7 @@ FOREACH( var ${CONFOREG_EXE_ITK_SRC} )
   TARGET_LINK_LIBRARIES( ${var}
   ITKIO
   ITKCommon
- # ITKReview
+  ITKStatistics
   )
 ENDFOREACH( var ${CONFOREG_EXE_ITK_SRC} )
 
