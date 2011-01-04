@@ -25,13 +25,13 @@ int main( int argc, char ** argv )
 
   //%%%%%%%%%%%%%%%%%%% ARGUMENTS PARSING %%%%%%%%%%%%%%%%%%%
 
-  if ( argc < 5 )
+  if ( argc < 6 )
     {
     std::cerr << "Missing parameters. " << std::endl;
     std::cerr << "Usage: " << std::endl;
     std::cerr << argv[0]
               << " inputimage"
-              << " x y"
+              << " x y z"
               << " 0-1(peak-distance)"
               << " outputImageFile(image)"
               << std::endl;
@@ -40,13 +40,14 @@ int main( int argc, char ** argv )
   // arguments reading and parsing
   double centerX = atof(argv[2]);
   double centerY = atof(argv[3]);
-  int func = atoi(argv[4]);
+  double centerZ = atof(argv[4]);
+  int func = atoi(argv[5]);
 
 
   //%%%%%%%%%%%%%%%%%%% TYPEDEFS %%%%%%%%%%%%%%%%%%%
 
   // dimension of input image (and phi)
-  const   unsigned int   Dimension = 2;
+  const   unsigned int   Dimension = 3;
 
   // scalar field type
   typedef double                              PixelType;
@@ -95,10 +96,11 @@ int main( int argc, char ** argv )
 
   DistanceMetricType::Pointer distanceMetric = DistanceMetricType::New();
 
-  DistanceMetricType::OriginType originPoint( 2 );
-  MeasurementVectorType queryPoint( 2 );
+  DistanceMetricType::OriginType originPoint( Dimension );
+  MeasurementVectorType queryPoint( Dimension );
   originPoint[0] = centerX;
   originPoint[1] = centerY;
+  originPoint[2] = centerZ;
 
   distanceMetric->SetOrigin( originPoint );
 
@@ -152,7 +154,7 @@ int main( int argc, char ** argv )
 
   // write output
   WriterType::Pointer writer = WriterType::New();
-  writer->SetFileName( argv[5] );
+  writer->SetFileName( argv[6] );
   writer->SetInput(initialImage);
   try
     {

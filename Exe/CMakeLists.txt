@@ -3,7 +3,9 @@ SET( CONFOREG_EXE_ITK_SRC
   Subjective2DVideo
   Subjective
   Feature2D
+  Feature
   Initialize2D
+  Initialize
   )
 
 FOREACH( var ${CONFOREG_EXE_ITK_SRC} )
