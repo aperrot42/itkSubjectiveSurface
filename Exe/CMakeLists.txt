@@ -6,6 +6,7 @@ SET( CONFOREG_EXE_ITK_SRC
   Feature
   Initialize2D
   Initialize
+GeodesicDiffusion
   )
 
 FOREACH( var ${CONFOREG_EXE_ITK_SRC} )
