@@ -50,13 +50,9 @@ SetNthInput(1, const_cast
 
 
 
-
 template< class InputImageType, class OutputImageType >
 void
-SubjectiveSurfaceEvolutionFilter< typename itk::Image<
-                                    typename InputImageType::PixelType, 2 >,
-                                  typename itk::Image<
-                                    typename OutputImageType::PixelType, 2 > >::
+SubjectiveSurfaceEvolutionFilter<InputImageType, OutputImageType>::
 GenerateData()
 {
 //if (InputImageType::ImageDimension >= 1)
@@ -83,6 +79,22 @@ GenerateData()
   m_ImageDuplicator->SetInputImage(this->GetInput(0));
 
 
+
+  // depending on dimension of ImageType, only one version of
+  // GenerateData will actually be instantiated
+  // The DimType<dim> * parameter never used, but it's a low-cost way
+  // to force compile-time type discrimination
+  this->GenerateData(static_cast< DimensionType<InputImageType::ImageDimension>*>(0));
+
+
+}
+
+
+  template< class InputImageType, class OutputImageType >
+  void
+  SubjectiveSurfaceEvolutionFilter<InputImageType, OutputImageType>::
+  GenerateData(DimensionType<2> *)
+  {
 
   if (InputImageType::ImageDimension == 2)
     {
@@ -221,6 +233,7 @@ GenerateData()
   }
 
 
+}
 
 
 
@@ -228,6 +241,12 @@ GenerateData()
 
 
 
+
+  template< class InputImageType, class OutputImageType >
+  void
+  SubjectiveSurfaceEvolutionFilter<InputImageType, OutputImageType>::
+  GenerateData(DimensionType<3> *)
+  {
 
 if (InputImageType::ImageDimension >= 3)
   {
@@ -401,6 +420,18 @@ if (InputImageType::ImageDimension >= 3)
 this->GraftOutput( m_OutputImage  );
 
 }
+
+  // General Case ND
+  template< class InputImageType, class OutputImageType >
+  template <unsigned dimension>
+  void
+  SubjectiveSurfaceEvolutionFilter<InputImageType, OutputImageType>::
+  GenerateData(DimensionType <dimension> *)
+  {
+    std::cout << "this filter does not process images of dimension : "
+              << InputImageType::ImageDimension
+              << std::endl;
+  }
 
 
 

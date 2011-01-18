@@ -112,6 +112,7 @@ public:
   /** End concept checking */
 #endif
 
+  void GenerateData();
 
 protected:
   SubjectiveSurfaceEvolutionFilter();
@@ -141,10 +142,22 @@ protected:
   InputPixelType    m_Nu;
   InputPixelType    m_Rho;
 
-  void GenerateData();
-
 
 private:
+
+  // dummy type to discriminate dimension at compile time
+  template <unsigned dimension> struct DimensionType {};
+
+  // here is the trick for having correct instanciations
+  // the general ND case -- template member function
+  template <unsigned dimension>  void GenerateData(DimensionType<dimension> *);
+  // the 2D special case -- non-template member function
+  void GenerateData(DimensionType<2> *);
+  // the 3D special case -- non-template member function
+  void GenerateData(DimensionType<3> *);
+
+
+
   SubjectiveSurfaceEvolutionFilter(const Self &); //purposely not implemented
   void operator=(const Self &);             //purposely not implemented
 
