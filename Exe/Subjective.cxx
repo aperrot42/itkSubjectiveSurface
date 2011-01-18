@@ -14,6 +14,10 @@
 
 #include "itkGradientRecursiveGaussianImageFilter.h"
 
+
+#include "itkMembraneEdgeDetectorFilter.h"
+#include "itkSubjectiveSurfaceEvolutionFilter.h"
+
 #include "math.h"
 
 int main( int argc, char ** argv )
@@ -24,7 +28,7 @@ int main( int argc, char ** argv )
     std::cerr << "Missing parameters. " << std::endl;
     std::cerr << "Usage: " << std::endl;
     std::cerr << argv[0]
-              << " inputphi(image) inputEdge(image)"
+              << " inputphi(image) inputImage(image)"
               << " nu rho deltat curavtureFactor NbIter"
               << " outputImageFile(image)"
               << std::endl;
@@ -41,7 +45,7 @@ int main( int argc, char ** argv )
   //%%%%%%%%%%%%%%%%%%% TYPEDEFS %%%%%%%%%%%%%%%%%%%
 
   // dimension of input image (and phi)
-  const   unsigned int   Dimension = 3;
+  const   unsigned int   Dimension = 2;
 
   // scalar field type
   typedef double                              PixelType;
@@ -81,6 +85,11 @@ int main( int argc, char ** argv )
 
 
 
+  // subjective surfaces and edge detection
+  typedef itk::SubjectiveSurfaceEvolutionFilter<ImageType,ImageType>
+      SubjectiveSurfaceEvolutionFilterType;
+  typedef itk::MembraneEdgeDetectorFilter<ImageType,ImageType>
+      EdgeFilterType;
   //%%%%%%%%%%%%%%%%%%% INPUTS READING AND RESCALING %%%%%%%%%%%%%%%%%%%
 
   // reading phi0, store the rescaled version in inputphi
@@ -110,7 +119,24 @@ int main( int argc, char ** argv )
   inputphi->DisconnectPipeline();
 
 
+  ReaderType::Pointer readerImage = ReaderType::New();
+  readerImage->SetFileName( argv[2] );
+  try
+    {
+    readerImage->Update();
+    }
+  catch ( itk::ExceptionObject &err)
+    {
+    std::cout << "ExceptionObject caught !" << std::endl;
+    std::cout << err << std::endl;
+    return -1;
+    }
 
+
+
+
+
+/*
   // reading g, store the rescaled version in inputg
   ReaderType::Pointer readerEdge = ReaderType::New();
   readerEdge->SetFileName( argv[2] );
@@ -330,12 +356,40 @@ std::cout << "output reference count : "
           << std::endl;
 #endif
 
+*/
+
+
+  // membrane edge filter
+
+  EdgeFilterType::Pointer edgeFilter = EdgeFilterType::New();
+  edgeFilter->SetInput(readerImage->GetOutput());
+  edgeFilter->SetBeta(100);
+  edgeFilter->SetSigma(0.5);
+  edgeFilter->SetPow(2);
+  edgeFilter->Update();
+
+
+  // subjective surfaces
+  SubjectiveSurfaceEvolutionFilterType::Pointer SubjSurfFilter =
+      SubjectiveSurfaceEvolutionFilterType::New();
+  SubjSurfFilter->SetInput(inputphi);
+  SubjSurfFilter->SetEdgeMap(edgeFilter->GetOutput());
+
+  SubjSurfFilter->SetNumberIteration( nbiter );
+  SubjSurfFilter->SetDeltaT( deltat );
+  SubjSurfFilter->Seta( curvatureFactor );
+  SubjSurfFilter->SetNu( nu );
+  SubjSurfFilter->SetRho( rho );
+
+
+  SubjSurfFilter->Update();
+
 
 // rescaling output (phi(t=tmax))
 RescaleOutputFilterType::Pointer rescaler = RescaleOutputFilterType::New();
 rescaler->SetOutputMinimum(   0 );
 rescaler->SetOutputMaximum( 255 );
-rescaler->SetInput(outputphi);
+rescaler->SetInput(SubjSurfFilter->GetOutput());
 
 // write output in png
 WriterType::Pointer writer = WriterType::New();

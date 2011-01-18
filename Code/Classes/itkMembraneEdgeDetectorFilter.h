@@ -51,11 +51,6 @@ public:
   typedef typename TOutputImage::PixelType OutputPixelType;
 
 
-
-  /** Set the "outside" pixel value. The default value
-   * NumericTraits<OutputPixelType>::Zero. */
-  itkSetMacro(OutsideValue, OutputPixelType);
-
   /** Get Sigma */
   itkGetConstReferenceMacro(Sigma, OutputPixelType);
   /** Set Sigma */
@@ -87,19 +82,19 @@ protected:
 
 
   // take the gradient of the input image
-  typedef itk::RecursiveGaussianImageFilter< TInputImage,TOutputImage>
+  typedef RecursiveGaussianImageFilter< TInputImage,TOutputImage>
       GaussianFilterType;
   // take abs of the gradient
-  typedef itk::AbsImageFilter< TOutputImage,TOutputImage>
+  typedef AbsImageFilter< TOutputImage,TOutputImage>
       AbsFilterType;
   // multiply by Beta
-  typedef itk::MultiplyByConstantImageFilter< TOutputImage, OutputPixelType, TOutputImage>
+  typedef MultiplyByConstantImageFilter< TOutputImage, OutputPixelType, TOutputImage>
       MultiplyFilterType;
   // take the image at power Pow
-  typedef itk::PowImageFilter< TOutputImage,TOutputImage>
+  typedef PowImageFilter< TOutputImage,TOutputImage>
       PowerFilterType;
   // 1 + image
-  typedef itk::AddConstantToImageFilter< TOutputImage, OutputPixelType, TOutputImage>
+  typedef AddConstantToImageFilter< TOutputImage, OutputPixelType, TOutputImage>
       AddConstantFilterType;
 
 

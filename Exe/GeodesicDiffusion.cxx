@@ -17,6 +17,9 @@
 #include "math.h"
 
 
+#include "itkMembraneEdgeDetectorFilter.h"
+
+
 int main( int argc, char ** argv )
 {
 
@@ -28,15 +31,18 @@ int main( int argc, char ** argv )
     std::cerr << "Missing parameters. " << std::endl;
     std::cerr << "Usage: " << std::endl;
     std::cerr << argv[0]
-              << " inputphi(image) inputEdge(image)"
-              << " deltat NbIter"
+              << " inputphi(image)"
+              << " Beta Sigma Pow dT NbIter"
               << " outputImageFile(image)"
               << std::endl;
     return -1;
     }
   // arguments reading and parsing
+  double Beta =   atof(argv[2]);
+  double Sigma =  atof(argv[3]);
+  double Pow =    atof(argv[4]);
   double deltat = atof(argv[5]);
-  int nbiter = atoi(argv[7]);
+  int nbiter =    atoi(argv[6]);
 
 
 
@@ -74,6 +80,10 @@ int main( int argc, char ** argv )
   typedef itk::RescaleIntensityImageFilter<
                ImageType, ImageType > RescaleFilterType;
 
+  typedef itk::MembraneEdgeDetectorFilter<
+      ImageType, ImageType > EdgeDetectorType;
+
+
   // output image type
   typedef unsigned char                            WritePixelType;
   typedef itk::Image< WritePixelType, Dimension >  WriteImageType;
@@ -101,72 +111,39 @@ int main( int argc, char ** argv )
     return -1;
     }  
 
-  // rescale phi0
-  RescaleFilterType::Pointer rescalerInputPhy = RescaleFilterType::New();
-  rescalerInputPhy->SetOutputMinimum( 0.01671 );
-  rescalerInputPhy->SetOutputMaximum( 2.0241 ); // value taken from matlab
-  rescalerInputPhy->SetInput(reader->GetOutput());
-  rescalerInputPhy->Update();
+  RescaleFilterType::Pointer inputRescale = RescaleFilterType::New();
+  inputRescale->SetInput(reader->GetOutput());
+  inputRescale->SetOutputMinimum( 0.);
+  inputRescale->SetOutputMaximum( 1.);
+  inputRescale->Update();
 
-  // pointer to phi
-  ImageType::Pointer inputphi = rescalerInputPhy->GetOutput();
+  // pointer to inputImage
+  ImageType::Pointer inputImage = reader->GetOutput();
   // stop propagating the update process
-  inputphi->DisconnectPipeline();
+  inputImage->DisconnectPipeline();
 
 
-
-  // reading g, store the rescaled version in inputg
-  ReaderType::Pointer readerEdge = ReaderType::New();
-  readerEdge->SetFileName( argv[2] );
-  try
-    {
-    readerEdge->Update();
-    }
-  catch ( itk::ExceptionObject &err)
-    {
-    std::cout << "ExceptionObject caught !" << std::endl;
-    std::cout << err << std::endl;
-    return -1;
-    }
-
-  // rescale inputG
-  RescaleFilterType::Pointer rescalerInputG = RescaleFilterType::New();
-  rescalerInputG->SetOutputMinimum( 0.01671 );
-  rescalerInputG->SetOutputMaximum( 2.0241 ); // value taken from matlab
-  rescalerInputG->SetInput(reader->GetOutput());
-  rescalerInputG->Update();
-
-  // pointer to phi
-  ImageType::Pointer inputG = rescalerInputG->GetOutput();
-  // stop propagating the update process
-  inputG->DisconnectPipeline();
-
-  // iterator on g (scalar)
-  ConstIteratorType edgit( inputG, inputG->GetRequestedRegion() );
+  //EDGE DETECTION AND GRADIENT
+  EdgeDetectorType::Pointer edgeDetector = EdgeDetectorType::New();
+  GradientFilterType::Pointer gradient = GradientFilterType::New();
+  ImageType::Pointer edgeImage;
+  edgeDetector->SetSigma(Sigma);
+  edgeDetector->SetPow(Pow);
+  edgeDetector->SetBeta(Beta);
 
 
 
   //%%%%%%%%%%%%%%%%%%% COMPUTATIONS %%%%%%%%%%%%%%%%%%%
 
-  // computation of grad(g) (DimensionxDimension)
-  GradientFilterType::Pointer gradient = GradientFilterType::New();
-  gradient->SetInput( inputG );
-  gradient->Update();
-  // iterator on grad(g) (vector)
-  ConstVectorIteratorType edgderivit( gradient->GetOutput(),
-                                      gradient->GetOutput()
-                                              ->GetLargestPossibleRegion() );
-    // gradient vector at a given point
-  VectorPixelType edgederivVector;
 
 
   // ITERATIVE LOOP :
 
   // allocation of phi(t+1)
-  ImageType::Pointer outputphi = ImageType::New();
-  outputphi->SetRegions(inputphi->GetRequestedRegion());
-  outputphi->SetSpacing(inputphi->GetSpacing());
-  outputphi->Allocate();
+  ImageType::Pointer outputImage = ImageType::New();
+  outputImage->SetRegions(inputImage->GetRequestedRegion());
+  outputImage->SetSpacing(inputImage->GetSpacing());
+  outputImage->Allocate();
 
   // offsets definition for neighborhood computations :
   NeighborhoodIteratorType::OffsetType minusx = {{-1,0}};
@@ -191,22 +168,42 @@ int main( int argc, char ** argv )
             dxy,
             dxsquare, dysquare;
     //equation members
-  PixelType Hg, Upwind, nextphi;
+  PixelType Hg, Upwind, nextValue;
 
 
   for (int iter = 0; iter<nbiter; ++iter)
     {
-    // input iterator (on phi)
+    // EDGE DETECTOR (g) :
+    edgeDetector->SetInput(inputImage);
+    edgeDetector->Update();
+    // g :
+    edgeImage = edgeDetector->GetOutput();
+    // iterator on g (scalar)
+    ConstIteratorType edgit( edgeImage,
+                             edgeImage->GetLargestPossibleRegion() );
+
+    // computation of grad(g) (DimensionxDimension)
+    gradient->SetInput( edgeImage );
+    gradient->Update();
+    // gradient vector at a given point
+    VectorPixelType edgederivVector;
+    // iterator on grad(g) (vector)
+    ConstVectorIteratorType edgderivit( gradient->GetOutput(),
+                                        gradient->GetOutput()
+                                                ->GetLargestPossibleRegion());
+
+
+    // input iterator (on I)
     NeighborhoodIteratorType::RadiusType radius;
     radius.Fill(1);
-    NeighborhoodIteratorType it( radius, inputphi,
-                                 inputphi->GetRequestedRegion() );
+    NeighborhoodIteratorType it( radius, inputImage,
+                                 inputImage->GetRequestedRegion() );
 
-    // output iterator ( on phi(t+1) )
-    IteratorType out(outputphi, inputphi->GetRequestedRegion());
+    // output iterator ( on I(t+1) )
+    IteratorType out(outputImage, inputImage->GetRequestedRegion());
 
 
-    // one iteration :
+    // ONE ITERATION :
     for ( it.GoToBegin(), edgit.GoToBegin(), edgderivit.GoToBegin(),
             out.GoToBegin();
           !it.IsAtEnd();
@@ -254,18 +251,17 @@ int main( int argc, char ** argv )
 
 
       // value of phi(t+1)
-      nextphi = it.GetCenterPixel()+deltat*(Hg-Upwind);
+      nextValue = it.GetCenterPixel()+deltat*(Hg-Upwind);
 
-      out.Set(nextphi);
+      out.Set(nextValue);
       }
     // input is now output
       //(smart pointer dereference automatically
       // the memory previously pointed by inputphi,
       // and tempImagePoint gets out of scope at the end of the iteration)
-    ImageType::Pointer tempImagePoint = inputphi;
-    inputphi = outputphi;
-    outputphi = tempImagePoint;
-
+    ImageType::Pointer tempImagePoint = inputImage;
+    inputImage = outputImage;
+    outputImage = tempImagePoint;
     }
 
 
@@ -273,11 +269,11 @@ int main( int argc, char ** argv )
   RescaleOutputFilterType::Pointer rescaler = RescaleOutputFilterType::New();
   rescaler->SetOutputMinimum(   0 );
   rescaler->SetOutputMaximum( 255 );
-  rescaler->SetInput(outputphi);
+  rescaler->SetInput(outputImage);
 
   // write output in png
   WriterType::Pointer writer = WriterType::New();
-  writer->SetFileName( argv[8] );
+  writer->SetFileName( argv[7] );
   writer->SetInput(rescaler->GetOutput());
   try
     {

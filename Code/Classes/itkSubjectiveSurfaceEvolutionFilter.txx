@@ -3,6 +3,10 @@
 
 #include "itkSubjectiveSurfaceEvolutionFilter.h"
 
+
+#include "itkImage.h"
+
+
 namespace itk
 {
 /**
@@ -15,10 +19,7 @@ SubjectiveSurfaceEvolutionFilter< InputImageType, OutputImageType >
   // we need the input phi and the feature map
   this->SetNumberOfRequiredInputs( 2 );
 
-
   m_ImageDuplicator = ImageDuplicatorType::New();
-  // set phi as input of the duplicator
-  m_ImageDuplicator->SetInput(this->GetInput(0));
 
   m_Gradient = GradientFilterType::New();
 }
@@ -46,9 +47,16 @@ SetNthInput(1, const_cast
 }
 
 
+
+
+
+
 template< class InputImageType, class OutputImageType >
 void
-SubjectiveSurfaceEvolutionFilter<InputImageType, OutputImageType>::
+SubjectiveSurfaceEvolutionFilter< typename itk::Image<
+                                    typename InputImageType::PixelType, 2 >,
+                                  typename itk::Image<
+                                    typename OutputImageType::PixelType, 2 > >::
 GenerateData()
 {
 //if (InputImageType::ImageDimension >= 1)
@@ -71,6 +79,155 @@ GenerateData()
 //  m_AbsFilter->SetInput(m_GaussianFilterY->GetOutput());
 //  }
 
+  // set phi as input of the duplicator
+  m_ImageDuplicator->SetInputImage(this->GetInput(0));
+
+
+
+  if (InputImageType::ImageDimension == 2)
+    {
+    // duplicate phi for const correctness
+    m_ImageDuplicator->Update();
+    m_InputImage = m_ImageDuplicator->GetOutput();
+
+    // allocation of phi(t+1)
+    m_OutputImage = InputImageType::New();
+    m_OutputImage->SetRegions(m_InputImage->GetRequestedRegion());
+    m_OutputImage->SetSpacing(m_InputImage->GetSpacing());
+    m_OutputImage->Allocate();
+
+    // pointer to edgemap (g)
+    m_EdgeDetector = const_cast
+                     <InputImageType *>(this->GetInput(1));
+    // iterator on g (scalar)
+    ConstIteratorType edgit( m_EdgeDetector, m_EdgeDetector->GetRequestedRegion() );
+
+
+    // computation of grad(g) (DimensionxDimension)
+    m_Gradient->SetInput( m_EdgeDetector );
+    m_Gradient->Update();
+    // iterator on grad(g) (vector)
+    ConstVectorIteratorType edgderivit( m_Gradient->GetOutput(),
+                                        m_Gradient->GetOutput()
+                                                ->GetLargestPossibleRegion() );
+    // gradient vector at a given point
+    VectorPixelType edgederivVector;
+
+
+
+  // offsets definition for neighborhood computations :
+  NeighborhoodOffsetType minusx = {{-1,0}};
+  NeighborhoodOffsetType plusx = {{1,0}};
+  NeighborhoodOffsetType minusy = {{0,-1}};
+  NeighborhoodOffsetType plusy = {{0,1}};
+  NeighborhoodOffsetType plusxplusy = {{1,1}};
+  NeighborhoodOffsetType minusxminusy = {{-1,-1}};
+  NeighborhoodOffsetType plusxminusy = {{1,-1}};
+  NeighborhoodOffsetType minusxplusy = {{-1,1}};
+
+  // get the spacing in x and y for derivatives computations
+  typename InputImageType::SpacingType inputSpacing = m_InputImage->GetSpacing();
+  float spacingx = inputSpacing[0];
+  float spacingy = inputSpacing[1];
+
+
+  // temporary variables for the iterations
+    //derivatives
+  InputPixelType dplusx, dminusx, dplusy, dminusy,
+            dx, dy,
+            d2x, d2y,
+            dxy,
+            dxsquare, dysquare;
+    //equation members
+  InputPixelType Hg, Upwind, nextphi;
+
+
+  for (unsigned int iter = 0; iter< m_NumberIteration; ++iter)
+    {
+    // input iterator (on phi)
+    typename NeighborhoodIteratorType::RadiusType radius;
+    radius.Fill(1);
+    NeighborhoodIteratorType it( radius, m_InputImage,
+                                 m_InputImage->GetRequestedRegion() );
+
+    // output iterator ( on phi(t+1) )
+    IteratorType out(m_OutputImage, m_InputImage->GetRequestedRegion());
+
+    // we change the evolution of the surface from graph to level set
+    if (iter == m_NumberIteration/2)
+    m_a = m_a/1000000;
+
+
+
+  // one iteration :
+  for (it.GoToBegin(),edgit.GoToBegin(),edgderivit.GoToBegin(), out.GoToBegin();
+       !it.IsAtEnd();
+       ++it, ++out, ++edgderivit, ++edgit)
+      {
+
+      // derivatives computation :
+      dminusx = (it.GetCenterPixel()-it.GetPixel(minusx))/spacingx;
+      dminusy = (it.GetCenterPixel()-it.GetPixel(minusy))/spacingy;
+
+      dplusx = (it.GetPixel(plusx)-it.GetCenterPixel())/spacingx;
+      dplusy = (it.GetPixel(plusy)-it.GetCenterPixel())/spacingy;
+
+      dx = (it.GetPixel(plusx) - it.GetPixel(minusx))/(2*spacingx);
+      dy = (it.GetPixel(plusy) - it.GetPixel(minusy))/(2*spacingy);
+
+      d2x = (dplusx-dminusx)/spacingx;
+      d2y = (dplusy-dminusy)/spacingy;
+
+      dxy = (it.GetPixel(plusxplusy)
+             + it.GetPixel(minusxminusy)
+             - it.GetPixel(plusxminusy)
+             - it.GetPixel(minusxplusy))
+            / (4*spacingx*spacingy);
+
+      dxsquare = dx*dx;
+      dysquare = dy*dy;
+
+
+      // evolution equation
+        // Hg = g*H (with H mean curvature of graph of phi)
+      Hg = edgit.Get() * (   (m_a  + dxsquare)*d2y
+                           + (m_a  + dysquare)*d2x
+                           - 2 * (dx*dy*dxy))
+           / (m_a  + dxsquare + dysquare ) ;
+
+        // grad(g)
+      edgederivVector = edgderivit.Get();
+
+        // upwind differntiation term : grad(I).*grad(g)
+      Upwind = std::min(-edgederivVector[0],(double)0.)*dplusx
+             + std::max(-edgederivVector[0],(double)0.)*dminusx
+             + std::min(-edgederivVector[1],(double)0.)*dplusy
+             + std::max(-edgederivVector[1],(double)0.)*dminusy;
+
+
+      // value of phi(t+1)
+      nextphi = it.GetCenterPixel()+m_DeltaT*(m_Nu*Hg-m_Rho*Upwind);
+
+      out.Set(nextphi);
+      }
+    // input is now output
+      //(smart pointer dereference automatically
+      // the memory previously pointed by inputphi,
+      // and tempImagePoint gets out of scope at the end of the iteration)
+  m_TempImage = m_InputImage;
+  m_InputImage = m_OutputImage;
+  m_OutputImage = m_TempImage;
+    }
+  }
+
+
+
+
+
+
+
+
+
 
 if (InputImageType::ImageDimension >= 3)
   {
@@ -79,7 +236,7 @@ if (InputImageType::ImageDimension >= 3)
   m_InputImage = m_ImageDuplicator->GetOutput();
 
   // allocation of phi(t+1)
-  m_OutputImage = ImageType::New();
+  m_OutputImage = InputImageType::New();
   m_OutputImage->SetRegions(m_InputImage->GetRequestedRegion());
   m_OutputImage->SetSpacing(m_InputImage->GetSpacing());
   m_OutputImage->Allocate();
@@ -87,7 +244,8 @@ if (InputImageType::ImageDimension >= 3)
 
 
   // pointer to edgemap (g)
-  m_EdgeDetector = this->GetInput(1);
+  m_EdgeDetector = const_cast
+                   <InputImageType *>(this->GetInput(1));
   // iterator on g (scalar)
   ConstIteratorType edgit( m_EdgeDetector, m_EdgeDetector->GetRequestedRegion() );
 
@@ -102,56 +260,53 @@ if (InputImageType::ImageDimension >= 3)
   // gradient vector at a given point
   VectorPixelType edgederivVector;
 
-
   // offsets definition :
-  NeighborhoodIteratorType::OffsetType minusx = {{-1,0,0}};
-  NeighborhoodIteratorType::OffsetType plusx = {{1,0,0}};
+  NeighborhoodOffsetType minusx = {{-1,0,0}};
+  NeighborhoodOffsetType plusx = {{1,0,0}};
 
-  NeighborhoodIteratorType::OffsetType minusy = {{0,-1,0}};
-  NeighborhoodIteratorType::OffsetType plusy = {{0,1,0}};
+  NeighborhoodOffsetType minusy = {{0,-1,0}};
+  NeighborhoodOffsetType plusy = {{0,1,0}};
 
-  NeighborhoodIteratorType::OffsetType minusz = {{0,0,-1}};
-  NeighborhoodIteratorType::OffsetType plusz = {{0,0,1}};
+  NeighborhoodOffsetType minusz = {{0,0,-1}};
+  NeighborhoodOffsetType plusz = {{0,0,1}};
 
 
-  NeighborhoodIteratorType::OffsetType plusxplusy = {{1,1,0}};
-  NeighborhoodIteratorType::OffsetType minusxminusy = {{-1,-1,0}};
-  NeighborhoodIteratorType::OffsetType plusxminusy = {{1,-1,0}};
-  NeighborhoodIteratorType::OffsetType minusxplusy = {{-1,1,0}};
+  NeighborhoodOffsetType plusxplusy = {{1,1,0}};
+  NeighborhoodOffsetType minusxminusy = {{-1,-1,0}};
+  NeighborhoodOffsetType plusxminusy = {{1,-1,0}};
+  NeighborhoodOffsetType minusxplusy = {{-1,1,0}};
 
-  NeighborhoodIteratorType::OffsetType plusxplusz = {{1,0,1}};
-  NeighborhoodIteratorType::OffsetType minusxminusz = {{-1,0,-1}};
-  NeighborhoodIteratorType::OffsetType plusxminusz = {{1,0,-1}};
-  NeighborhoodIteratorType::OffsetType minusxplusz = {{-1,0,1}};
+  NeighborhoodOffsetType plusxplusz = {{1,0,1}};
+  NeighborhoodOffsetType minusxminusz = {{-1,0,-1}};
+  NeighborhoodOffsetType plusxminusz = {{1,0,-1}};
+  NeighborhoodOffsetType minusxplusz = {{-1,0,1}};
 
-  NeighborhoodIteratorType::OffsetType plusyplusz = {{0,1,1}};
-  NeighborhoodIteratorType::OffsetType minusyminusz = {{0,-1,-1}};
-  NeighborhoodIteratorType::OffsetType plusyminusz = {{0,1,-1}};
-  NeighborhoodIteratorType::OffsetType minusyplusz = {{0,-1,1}};
+  NeighborhoodOffsetType plusyplusz = {{0,1,1}};
+  NeighborhoodOffsetType minusyminusz = {{0,-1,-1}};
+  NeighborhoodOffsetType plusyminusz = {{0,1,-1}};
+  NeighborhoodOffsetType minusyplusz = {{0,-1,1}};
 
 
   // get the spacing in x and y for derivatives computations
-  ImageType::SpacingType inputSpacing = reader->GetOutput()->GetSpacing();
+  typename InputImageType::SpacingType inputSpacing = m_InputImage->GetSpacing();
   float spacingx = inputSpacing[0];
   float spacingy = inputSpacing[1];
   float spacingz = inputSpacing[2];
 
   // temporary variables for the iterations
-  PixelType dplusx, dminusx, dplusy, dminusy, dplusz, dminusz,
+  InputPixelType dplusx, dminusx, dplusy, dminusy, dplusz, dminusz,
             dx, dy, dz,
             d2x, d2y, d2z,
             dxy, dxz, dyz,
             dxsquare, dysquare, dzsquare;
   //equation members
-  PixelType Hg, Upwind, nextphi;
+  InputPixelType Hg, Upwind, nextphi;
 
 
-  std::cout << "begin of iteration loop" << std::endl;
-
-  for (int iter = 0; iter< m_NumIter; ++iter)
+  for (unsigned int iter = 0; iter< m_NumberIteration; ++iter)
     {
     // input iterator (on phi)
-    NeighborhoodIteratorType::RadiusType radius;
+    typename NeighborhoodIteratorType::RadiusType radius;
     radius.Fill(1);
     NeighborhoodIteratorType it( radius, m_InputImage,
                                  m_InputImage->GetRequestedRegion() );
@@ -160,90 +315,91 @@ if (InputImageType::ImageDimension >= 3)
     IteratorType out(m_OutputImage, m_InputImage->GetRequestedRegion());
 
     // we change the evolution of the surface from graph to level set
-    if (iter == nbiter/2)
-    curvatureFactor = curvatureFactor/1000000;
+    if (iter == m_NumberIteration/2)
+      m_a = m_a/1000000;
 
 
 
-  // one iteration :
-  for (it.GoToBegin(),edgit.GoToBegin(),edgderivit.GoToBegin(), out.GoToBegin();
-       !it.IsAtEnd();
-       ++it, ++out, ++edgderivit, ++edgit)
-    {
+    // one iteration :
+    for (it.GoToBegin(),edgit.GoToBegin(),edgderivit.GoToBegin(), out.GoToBegin();
+         !it.IsAtEnd();
+         ++it, ++out, ++edgderivit, ++edgit)
+      {
 
-    // derivatives computation :
-    dminusx = (it.GetCenterPixel()-it.GetPixel(minusx))/spacingx;
-    dminusy = (it.GetCenterPixel()-it.GetPixel(minusy))/spacingy;
-    dminusz = (it.GetCenterPixel()-it.GetPixel(minusz))/spacingz;
-
-
-    dplusx = (it.GetPixel(plusx)-it.GetCenterPixel())/spacingx;
-    dplusy = (it.GetPixel(plusy)-it.GetCenterPixel())/spacingy;
-    dplusz = (it.GetPixel(plusz)-it.GetCenterPixel())/spacingz;
+      // derivatives computation :
+      dminusx = (it.GetCenterPixel()-it.GetPixel(minusx))/spacingx;
+      dminusy = (it.GetCenterPixel()-it.GetPixel(minusy))/spacingy;
+      dminusz = (it.GetCenterPixel()-it.GetPixel(minusz))/spacingz;
 
 
-    dx = (it.GetPixel(plusx) - it.GetPixel(minusx))/(2*spacingx);
-    dy = (it.GetPixel(plusy) - it.GetPixel(minusy))/(2*spacingy);
-    dz = (it.GetPixel(plusz) - it.GetPixel(minusz))/(2*spacingz);
+      dplusx = (it.GetPixel(plusx)-it.GetCenterPixel())/spacingx;
+      dplusy = (it.GetPixel(plusy)-it.GetCenterPixel())/spacingy;
+      dplusz = (it.GetPixel(plusz)-it.GetCenterPixel())/spacingz;
 
 
-    d2x = dplusx-dminusx;
-    d2y = dplusy-dminusy;
-    d2z = dplusz-dminusz;
+      dx = (it.GetPixel(plusx) - it.GetPixel(minusx))/(2*spacingx);
+      dy = (it.GetPixel(plusy) - it.GetPixel(minusy))/(2*spacingy);
+      dz = (it.GetPixel(plusz) - it.GetPixel(minusz))/(2*spacingz);
 
 
-    dxy = (it.GetPixel(plusxplusy)
-           + it.GetPixel(minusxminusy)
-           - it.GetPixel(plusxminusy)
-           - it.GetPixel(minusxplusy))
-          / (4*spacingx*spacingy);
-    dxz = (it.GetPixel(plusxplusz)
-           + it.GetPixel(minusxminusz)
-           - it.GetPixel(plusxminusz)
-           - it.GetPixel(minusxplusz))
-          / (4*spacingx*spacingz);
-    dyz = (it.GetPixel(plusyplusz)
-          + it.GetPixel(minusyminusz)
-          - it.GetPixel(plusyminusz)
-          - it.GetPixel(minusyplusz))
-          / (4*spacingy*spacingz);
+      d2x = dplusx-dminusx;
+      d2y = dplusy-dminusy;
+      d2z = dplusz-dminusz;
 
 
-    dxsquare = dx*dx;
-    dysquare = dy*dy;
-    dzsquare = dz*dz;
+      dxy = (it.GetPixel(plusxplusy)
+             + it.GetPixel(minusxminusy)
+             - it.GetPixel(plusxminusy)
+             - it.GetPixel(minusxplusy))
+            / (4*spacingx*spacingy);
+      dxz = (it.GetPixel(plusxplusz)
+             + it.GetPixel(minusxminusz)
+             - it.GetPixel(plusxminusz)
+             - it.GetPixel(minusxplusz))
+            / (4*spacingx*spacingz);
+      dyz = (it.GetPixel(plusyplusz)
+            + it.GetPixel(minusyminusz)
+            - it.GetPixel(plusyminusz)
+            - it.GetPixel(minusyplusz))
+            / (4*spacingy*spacingz);
 
 
-    // evolution equation
-    Hg = edgit.Get() * (  (curvatureFactor + dxsquare + dysquare)*d2z
-                         +(curvatureFactor + dxsquare + dzsquare)*d2y
-                         +(curvatureFactor + dzsquare + dysquare)*d2x
-                         -2 * (dx*dz*dxz+dx*dy*dxy+dy*dz*dyz))
-            / (curvatureFactor + dxsquare + dysquare + dzsquare) ;
+      dxsquare = dx*dx;
+      dysquare = dy*dy;
+      dzsquare = dz*dz;
 
-    edgederivVector = edgderivit.Get();
 
-    Upwind =  std::min(-edgederivVector[0],0.)*dplusx
-            + std::max(-edgederivVector[0],0.)*dminusx
-            + std::min(-edgederivVector[1],0.)*dplusy
-            + std::max(-edgederivVector[1],0.)*dminusy
-            + std::min(-edgederivVector[2],0.)*dplusz
-            + std::max(-edgederivVector[2],0.)*dminusz;
+      // evolution equation
+      Hg = edgit.Get() * (  (m_a + dxsquare + dysquare)*d2z
+                           +(m_a + dxsquare + dzsquare)*d2y
+                           +(m_a + dzsquare + dysquare)*d2x
+                           -2 * (dx*dz*dxz+dx*dy*dxy+dy*dz*dyz))
+              / (m_a + dxsquare + dysquare + dzsquare) ;
 
-    nextphi = it.GetCenterPixel()+m_DeltaT*(nu*Hg-rho*Upwind);
+      edgederivVector = edgderivit.Get();
 
-    out.Set(nextphi);
+      Upwind =  std::min(-edgederivVector[0],0.)*dplusx
+              + std::max(-edgederivVector[0],0.)*dminusx
+              + std::min(-edgederivVector[1],0.)*dplusy
+              + std::max(-edgederivVector[1],0.)*dminusy
+              + std::min(-edgederivVector[2],0.)*dplusz
+              + std::max(-edgederivVector[2],0.)*dminusz;
+
+      nextphi = it.GetCenterPixel()+m_DeltaT*(m_Nu*Hg-m_Rho*Upwind);
+
+      out.Set(nextphi);
+      }
+    // input is now output
+      //(smart pointer dereference automatically
+      // the memory previously pointed by m_InputImage,
+      // and m_TempImage gets out of scope at the end of the iteration)
+    m_TempImage = m_InputImage;
+    m_InputImage = m_OutputImage;
+    m_OutputImage = m_TempImage;
     }
-  // input is now output
-    //(smart pointer dereference automatically
-    // the memory previously pointed by m_InputImage,
-    // and m_TempImage gets out of scope at the end of the iteration)
-  m_TempImage = m_InputImage;
-  m_InputImage = m_OutputImage;
-  m_OutputImage = m_TempImage;
   }
-  this->GraftOutput( outputImage  );
-  }
+this->GraftOutput( m_OutputImage  );
+
 }
 
 
@@ -259,12 +415,14 @@ PrintSelf(std::ostream & os, Indent indent) const
 {
   Superclass::PrintSelf(os, indent);
 
-  os << indent << "Beta: "
-     << static_cast< typename NumericTraits< OutputPixelType >::PrintType >( m_Beta ) << std::endl;
-  os << indent << "Sigma: "
-     << static_cast< typename NumericTraits< OutputPixelType >::PrintType >( m_Sigma ) << std::endl;
-  os << indent << "Pow: "
-     << static_cast< int >( this->GetPow() ) << std::endl;
+  os << indent << "Nu "
+     << static_cast< typename NumericTraits< OutputPixelType >::PrintType >( m_Nu ) << std::endl;
+  os << indent << "Rho: "
+     << static_cast< typename NumericTraits< OutputPixelType >::PrintType >( m_Rho ) << std::endl;
+  os << indent << "a: "
+     << static_cast< typename NumericTraits< OutputPixelType >::PrintType >( m_a ) << std::endl;
+  os << indent << "Number of iterations: "
+     << static_cast< int >( m_NumberIteration ) << std::endl;
 }
 
 }

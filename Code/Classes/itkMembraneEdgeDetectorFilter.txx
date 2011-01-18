@@ -41,7 +41,7 @@ MembraneEdgeDetectorFilter<TInputImage, TOutputImage>::
 GenerateData()
 {
 
-if (TInputImage::Dimension >= 1)
+if (TInputImage::ImageDimension >= 1)
   {
   m_GaussianFilterX->SetInput( this->GetInput() );
   m_GaussianFilterX->SetSigma(m_Sigma);
@@ -51,7 +51,7 @@ if (TInputImage::Dimension >= 1)
   m_AbsFilter->SetInput(m_GaussianFilterX->GetOutput());
   }
 
-if (TInputImage::Dimension >= 2)
+if (TInputImage::ImageDimension >= 2)
   {
   m_GaussianFilterY->SetInput(m_GaussianFilterX->GetOutput());
   m_GaussianFilterY->SetSigma(m_Sigma);
@@ -62,7 +62,7 @@ if (TInputImage::Dimension >= 2)
   }
 
 
-if (TInputImage::Dimension >= 3)
+if (TInputImage::ImageDimension >= 3)
   {
   m_GaussianFilterZ->SetInput( m_GaussianFilterY->GetOutput() );
   m_GaussianFilterZ->SetSigma( m_Sigma );

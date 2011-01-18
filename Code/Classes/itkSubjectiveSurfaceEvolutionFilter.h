@@ -9,7 +9,7 @@
 
 
 #include "itkConstantBoundaryCondition.h"
-
+#include "itkConstNeighborhoodIterator.h"
 #include "itkGradientRecursiveGaussianImageFilter.h"
 #include "itkImageDuplicator.h"
 
@@ -61,6 +61,8 @@ public:
   typedef itk::ConstantBoundaryCondition< InputImageType >  BoundaryConditionType;
   typedef itk::ConstNeighborhoodIterator< InputImageType, BoundaryConditionType >
           NeighborhoodIteratorType;
+  // neighborhood offset type
+  typedef typename NeighborhoodIteratorType::OffsetType NeighborhoodOffsetType;
   // simple iterators
   typedef itk::ImageRegionIterator< InputImageType>        IteratorType;
   typedef itk::ImageRegionConstIterator< InputImageType > ConstIteratorType;
@@ -80,9 +82,9 @@ public:
   itkSetMacro(NumberIteration, unsigned int);
 
   /** Get time interval between two iterations (DeltaT) */
-  itkGetConstReferenceMacro(DeltaT, unsigned int);
+  itkGetConstReferenceMacro(DeltaT, double);
   /** Set time interval between two iterations (DeltaT) */
-  itkSetMacro(DeltaT, unsigned int);
+  itkSetMacro(DeltaT, double);
 
   /** Get coefficient of diffusive term (nu) */
   itkGetConstReferenceMacro(Nu, InputPixelType);
@@ -93,6 +95,11 @@ public:
   itkGetConstReferenceMacro(Rho, InputPixelType);
   /** Set coefficient of Level Set term (Rho) */
   itkSetMacro(Rho, InputPixelType);
+
+  /** Get coefficient of measure ponderation */
+  itkGetConstReferenceMacro(a, InputPixelType);
+  /** Set coefficient of measure ponderation */
+  itkSetMacro(a, InputPixelType);
 
 
 #ifdef ITK_USE_CONCEPT_CHECKING
@@ -121,15 +128,16 @@ protected:
   typedef itk::ImageDuplicator< InputImageType >
       ImageDuplicatorType;
 
-  typename GradientFilterType::Pointer        m_ImageDuplicator;
-  typename ImageDuplicatorType::Pointer       m_Gradient;
+  typename ImageDuplicatorType::Pointer       m_ImageDuplicator;
+  typename GradientFilterType::Pointer        m_Gradient;
   typename InputImageType::Pointer            m_InputImage;
   typename InputImageType::Pointer            m_OutputImage;
   typename InputImageType::Pointer            m_TempImage;
   typename InputImageType::Pointer            m_EdgeDetector;
 
-  int                    m_NumIter;
-  int                    m_DeltaT;
+  unsigned int      m_NumberIteration;
+  double            m_DeltaT;
+  InputPixelType    m_a;
   InputPixelType    m_Nu;
   InputPixelType    m_Rho;
 
