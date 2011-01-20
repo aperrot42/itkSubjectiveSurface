@@ -55,25 +55,7 @@ void
 SubjectiveSurfaceEvolutionFilter<InputImageType, OutputImageType>::
 GenerateData()
 {
-//if (InputImageType::ImageDimension >= 1)
-//  {
-//  m_GaussianFilterX->SetInput( this->GetInput() );
-//  m_GaussianFilterX->SetSigma(m_Sigma);
-//  m_GaussianFilterX->SetDirection(0);
-//  m_GaussianFilterX->SetOrder( GaussianFilterType::ZeroOrder );
 
-//  m_AbsFilter->SetInput(m_GaussianFilterX->GetOutput());
-//  }
-
-//if (InputImageType::ImageDimension >= 2)
-//  {
-//  m_GaussianFilterY->SetInput(m_GaussianFilterX->GetOutput());
-//  m_GaussianFilterY->SetSigma(m_Sigma);
-//  m_GaussianFilterY->SetDirection(1);
-//  m_GaussianFilterY->SetOrder( GaussianFilterType::ZeroOrder );
-
-//  m_AbsFilter->SetInput(m_GaussianFilterY->GetOutput());
-//  }
 
   // set phi as input of the duplicator
   m_ImageDuplicator->SetInputImage(this->GetInput(0));
@@ -86,6 +68,7 @@ GenerateData()
   // to force compile-time type discrimination
   this->GenerateData(static_cast< DimensionType<InputImageType::ImageDimension>*>(0));
 
+  this->GraftOutput( m_OutputImage  );
 
 }
 
@@ -98,6 +81,7 @@ GenerateData()
 
   if (InputImageType::ImageDimension == 2)
     {
+    std::cout << "processing2Dimage"<<std::endl;
     // duplicate phi for const correctness
     m_ImageDuplicator->Update();
     m_InputImage = m_ImageDuplicator->GetOutput();
@@ -417,7 +401,6 @@ if (InputImageType::ImageDimension >= 3)
     m_OutputImage = m_TempImage;
     }
   }
-this->GraftOutput( m_OutputImage  );
 
 }
 
