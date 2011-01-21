@@ -2,6 +2,7 @@ SET( CONFOREG_EXE_ITK_SRC
   Subjective2D
   Subjective2DVideo
   Subjective
+  SubjectiveNuc
   Feature2D
   Feature
   Initialize2D
