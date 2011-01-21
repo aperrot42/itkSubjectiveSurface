@@ -149,9 +149,9 @@ GenerateData()
     // output iterator ( on phi(t+1) )
     IteratorType out(m_OutputImage, m_InputImage->GetRequestedRegion());
 
-    // we change the evolution of the surface from graph to level set
-    if (iter == m_NumberIteration/2)
-    m_a = m_a/1000000;
+//    // we change the evolution of the surface from graph to level set
+//    if (iter == m_NumberIteration/2)
+//    m_a = m_a/1000000;
 
 
 
@@ -317,9 +317,9 @@ if (InputImageType::ImageDimension >= 3)
     // output iterator ( on phi(t+1) )
     IteratorType out(m_OutputImage, m_InputImage->GetRequestedRegion());
 
-    // we change the evolution of the surface from graph to level set
-    if (iter == m_NumberIteration/2)
-      m_a = m_a/1000000;
+//    // we change the evolution of the surface from graph to level set
+//    if (iter == m_NumberIteration/2)
+//      m_a = m_a/1000000;
 
 
 
