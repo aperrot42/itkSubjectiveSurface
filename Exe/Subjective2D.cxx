@@ -1,34 +1,20 @@
-#if defined(_MSC_VER)
-#pragma warning ( disable : 4786 )
-#endif
-
-
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
 #include "itkRescaleIntensityImageFilter.h"
 
-#include "itkImageConstIterator.h"
-#include "itkConstantBoundaryCondition.h"
-#include "itkConstNeighborhoodIterator.h"
-#include "itkImageRegionIterator.h"
-
-#include "itkGradientRecursiveGaussianImageFilter.h"
+#include "itkSubjectiveSurfaceEvolutionFilter.h"
 
 #include "math.h"
 
-
 int main( int argc, char ** argv )
 {
-
-
-  //%%%%%%%%%%%%%%%%%%% ARGUMENTS PARSING %%%%%%%%%%%%%%%%%%%
 
   if ( argc < 8 )
     {
     std::cerr << "Missing parameters. " << std::endl;
     std::cerr << "Usage: " << std::endl;
     std::cerr << argv[0]
-              << " inputphi(image) inputEdge(image)"
+              << " inputphi(image) inputFeature(image)"
               << " nu rho deltat curavtureFactor NbIter"
               << " outputImageFile(image)"
               << std::endl;
@@ -40,10 +26,6 @@ int main( int argc, char ** argv )
   double deltat = atof(argv[5]);
   double curvatureFactor = atof(argv[6]);
   int nbiter = atoi(argv[7]);
-
-
-
-
 
 
   //%%%%%%%%%%%%%%%%%%% TYPEDEFS %%%%%%%%%%%%%%%%%%%
@@ -86,9 +68,11 @@ int main( int argc, char ** argv )
   typedef itk::RescaleIntensityImageFilter<
                ImageType, WriteImageType > RescaleOutputFilterType;
 
+  // subjective surfaces and edge detection
+  typedef itk::SubjectiveSurfaceEvolutionFilter<ImageType,ImageType>
+      SubjectiveSurfaceEvolutionFilterType;
 
 
-  //%%%%%%%%%%%%%%%%%%% INPUTS READING AND RESCALING %%%%%%%%%%%%%%%%%%%
 
   // reading phi0, store the rescaled version in inputphi
   ReaderType::Pointer reader = ReaderType::New();
@@ -102,28 +86,22 @@ int main( int argc, char ** argv )
     std::cout << "ExceptionObject caught !" << std::endl;
     std::cout << err << std::endl;
     return -1;
-    }  
-
+    }
   // rescale phi0
   RescaleFilterType::Pointer rescalerInputPhy = RescaleFilterType::New();
   rescalerInputPhy->SetOutputMinimum( 0.01671 );
   rescalerInputPhy->SetOutputMaximum( 2.0241 ); // value taken from matlab
   rescalerInputPhy->SetInput(reader->GetOutput());
   rescalerInputPhy->Update();
-
   // pointer to phi
   ImageType::Pointer inputphi = rescalerInputPhy->GetOutput();
-  // stop propagating the update process
-  inputphi->DisconnectPipeline();
 
-
-
-  // reading g, store the rescaled version in inputg
-  ReaderType::Pointer readerEdge = ReaderType::New();
-  readerEdge->SetFileName( argv[2] );
+  // read feature image
+  ReaderType::Pointer readerFeature = ReaderType::New();
+  readerFeature->SetFileName( argv[2] );
   try
     {
-    readerEdge->Update();
+    readerFeature->Update();
     }
   catch ( itk::ExceptionObject &err)
     {
@@ -131,191 +109,30 @@ int main( int argc, char ** argv )
     std::cout << err << std::endl;
     return -1;
     }
-
-  // rescale inputG
-  RescaleFilterType::Pointer rescalerInputG = RescaleFilterType::New();
-  rescalerInputG->SetOutputMinimum( 0.01671 );
-  rescalerInputG->SetOutputMaximum( 2.0241 ); // value taken from matlab
-  rescalerInputG->SetInput(reader->GetOutput());
-  rescalerInputG->Update();
-
-  // pointer to phi
-  ImageType::Pointer inputG = rescalerInputG->GetOutput();
-  // stop propagating the update process
-  inputG->DisconnectPipeline();
-
-  // iterator on g (scalar)
-  ConstIteratorType edgit( inputG, inputG->GetRequestedRegion() );
+  // pointer to the feature image
+  ImageType::Pointer inputfeature = rescalerInputPhy->GetOutput();
 
 
 
-  //%%%%%%%%%%%%%%%%%%% COMPUTATIONS %%%%%%%%%%%%%%%%%%%
+  // subjective surfaces
+  SubjectiveSurfaceEvolutionFilterType::Pointer SubjSurfFilter =
+      SubjectiveSurfaceEvolutionFilterType::New();
+  SubjSurfFilter->SetInput( inputphi );
+  SubjSurfFilter->SetEdgeMap( inputfeature);
 
-  // computation of grad(g) (DimensionxDimension)
-  GradientFilterType::Pointer gradient = GradientFilterType::New();
-  gradient->SetInput( inputG );
-  gradient->Update();
-  // iterator on grad(g) (vector)
-  ConstVectorIteratorType edgderivit( gradient->GetOutput(),
-                                      gradient->GetOutput()
-                                              ->GetLargestPossibleRegion() );
-    // gradient vector at a given point
-  VectorPixelType edgederivVector;
-
-
-  // ITERATIVE LOOP :
-
-  // allocation of phi(t+1)
-  ImageType::Pointer outputphi = ImageType::New();
-  outputphi->SetRegions(inputphi->GetRequestedRegion());
-  outputphi->SetSpacing(inputphi->GetSpacing());
-  outputphi->Allocate();
-
-  // offsets definition for neighborhood computations :
-  NeighborhoodIteratorType::OffsetType minusx = {{-1,0}};
-  NeighborhoodIteratorType::OffsetType plusx = {{1,0}};
-  NeighborhoodIteratorType::OffsetType minusy = {{0,-1}};
-  NeighborhoodIteratorType::OffsetType plusy = {{0,1}};
-  NeighborhoodIteratorType::OffsetType plusxplusy = {{1,1}};
-  NeighborhoodIteratorType::OffsetType minusxminusy = {{-1,-1}};
-  NeighborhoodIteratorType::OffsetType plusxminusy = {{1,-1}};
-  NeighborhoodIteratorType::OffsetType minusxplusy = {{-1,1}};
-
-  // get the spacing in x and y for derivatives computations
-  ImageType::SpacingType inputSpacing = reader->GetOutput()->GetSpacing();
-  double spacingx = inputSpacing[0];
-  double spacingy = inputSpacing[1];
-
-  // temporary variables for the iterations
-    //derivatives
-  PixelType dplusx, dminusx, dplusy, dminusy,
-            dx, dy,
-            d2x, d2y,
-            dxy,
-            dxsquare, dysquare;
-    //equation members
-  PixelType Hg, Upwind, nextphi;
-
-#ifdef _DEBUG
-  // make sure smart pointers are smart
-  std::cout << "inputphi reference count : "
-            << inputphi->GetReferenceCount()
-            << std::endl;
-  std::cout << "output reference count : "
-            << outputphi->GetReferenceCount()
-            << std::endl;
-  // see when we start iterating
-  std::cout << "begin of iteration loop" << std::endl;
-#endif
-
-  for (int iter = 0; iter<nbiter; ++iter)
-    {
-    // input iterator (on phi)
-    NeighborhoodIteratorType::RadiusType radius;
-    radius.Fill(1);
-    NeighborhoodIteratorType it( radius, inputphi,
-                                 inputphi->GetRequestedRegion() );
-
-    // output iterator ( on phi(t+1) )
-    IteratorType out(outputphi, inputphi->GetRequestedRegion());
-
-    // we change the evolution of the surface from graph to level set
-    if (iter == nbiter/2)
-    curvatureFactor = curvatureFactor/1000000;
-
-
-    // one iteration :
-    for ( it.GoToBegin(), edgit.GoToBegin(), edgderivit.GoToBegin(),
-            out.GoToBegin();
-          !it.IsAtEnd();
-          ++it, ++out, ++edgderivit, ++edgit )
-      {
-
-      // derivatives computation :
-      dminusx = (it.GetCenterPixel()-it.GetPixel(minusx))/spacingx;
-      dminusy = (it.GetCenterPixel()-it.GetPixel(minusy))/spacingy;
-
-      dplusx = (it.GetPixel(plusx)-it.GetCenterPixel())/spacingx;
-      dplusy = (it.GetPixel(plusy)-it.GetCenterPixel())/spacingy;
-
-      dx = (it.GetPixel(plusx) - it.GetPixel(minusx))/(2*spacingx);
-      dy = (it.GetPixel(plusy) - it.GetPixel(minusy))/(2*spacingy);
-
-      d2x = (dplusx-dminusx)/spacingx;
-      d2y = (dplusy-dminusy)/spacingy;
-
-      dxy = (it.GetPixel(plusxplusy)
-             + it.GetPixel(minusxminusy)
-             - it.GetPixel(plusxminusy)
-             - it.GetPixel(minusxplusy))
-            / (4*spacingx*spacingy);
-
-      dxsquare = dx*dx;
-      dysquare = dy*dy;
-
-
-      // evolution equation
-        // Hg = g*H (with H mean curvature of graph of phi)
-      Hg = edgit.Get() * (   (curvatureFactor + dxsquare)*d2y
-                           + (curvatureFactor + dysquare)*d2x
-                           - 2 * (dx*dy*dxy))
-           / (curvatureFactor + dxsquare + dysquare ) ;
-
-        // grad(g)
-      edgederivVector = edgderivit.Get();
-
-        // upwind differntiation term : grad(I).*grad(g)
-      Upwind = std::min(-edgederivVector[0],(double)0.)*dplusx
-             + std::max(-edgederivVector[0],(double)0.)*dminusx
-             + std::min(-edgederivVector[1],(double)0.)*dplusy
-             + std::max(-edgederivVector[1],(double)0.)*dminusy;
-
-
-      // value of phi(t+1)
-      nextphi = it.GetCenterPixel()+deltat*(nu*Hg-rho*Upwind);
-
-      out.Set(nextphi);
-      }
-    // input is now output
-      //(smart pointer dereference automatically
-      // the memory previously pointed by inputphi,
-      // and tempImagePoint gets out of scope at the end of the iteration)
-    ImageType::Pointer tempImagePoint = inputphi;
-    inputphi = outputphi;
-    outputphi = tempImagePoint;
-
-#ifdef _DEBUG
-    // make sure smart pointers are smart
-    std::cout << "inputphi reference count : "
-              << inputphi->GetReferenceCount()
-              << std::endl;
-    std::cout << "temp reference count : "
-              << tempImagePoint->GetReferenceCount()
-              << std::endl;
-    std::cout << "output reference count : "
-              << outputphi->GetReferenceCount()
-              << std::endl;
-#endif
-    }
-
-#ifdef _DEBUG
-  // see when we are done iterating
-  std::cout << "end of iteration loop" << std::endl;
-  // make sure smart pointers are smart
-  std::cout << "inputphi reference count : "
-            << inputphi->GetReferenceCount()
-            << std::endl;
-  std::cout << "output reference count : "
-            << outputphi->GetReferenceCount()
-            << std::endl;
-#endif
+  SubjSurfFilter->SetNumberIteration( nbiter );
+  SubjSurfFilter->SetDeltaT( deltat );
+  SubjSurfFilter->Seta( curvatureFactor );
+  SubjSurfFilter->SetNu( nu );
+  SubjSurfFilter->SetRho( rho );
+  SubjSurfFilter->Update();
 
 
   // rescaling output (phi(t=tmax))
   RescaleOutputFilterType::Pointer rescaler = RescaleOutputFilterType::New();
   rescaler->SetOutputMinimum(   0 );
   rescaler->SetOutputMaximum( 255 );
-  rescaler->SetInput(outputphi);
+  rescaler->SetInput(SubjSurfFilter->GetOutput());
 
   // write output in png
   WriterType::Pointer writer = WriterType::New();

@@ -45,10 +45,6 @@ int main( int argc, char ** argv )
   int nbiter =    atoi(argv[6]);
 
 
-
-
-
-
   //%%%%%%%%%%%%%%%%%%% TYPEDEFS %%%%%%%%%%%%%%%%%%%
 
   // dimension of input image (and phi)

@@ -7,15 +7,10 @@
 #include "itkImageFileWriter.h"
 #include "itkRescaleIntensityImageFilter.h"
 
-
-#include "itkRecursiveGaussianImageFilter.h"
-#include "itkAbsImageFilter.h"
-#include "itkPowImageFilter.h"
-#include "itkMultiplyByConstantImageFilter.h"
-#include "itkAddConstantToImageFilter.h"
-
 #include "math.h"
 
+#include "itkNucleusEdgeDetectorFilter.h"
+#include "itkMembraneEdgeDetectorFilter.h"
 
 int main( int argc, char ** argv )
 {
@@ -30,6 +25,7 @@ int main( int argc, char ** argv )
     std::cerr << argv[0]
               << " inputFilteredMembrane(image)"
               << " sigma b n"
+              << " detector type(0:nucleus 1:membrane)"
               << " outputImageFile(image)"
               << std::endl;
     return -1;
@@ -38,16 +34,17 @@ int main( int argc, char ** argv )
   double sigma = atof(argv[2]);
   double b = atof(argv[3]);
   double n = atof(argv[4]);
+  int detectortype = atoi(argv[5]);
 
   // for the membrane, the formula of the edge detector is :
-  // g(x,y)  =  1 / (1+(|g(I(x,y),sigma)|/b)^n)
+  // g(x,y)  =  1 / (1+(|gauss(I(x,y),sigma)|/b)^n)
 
 
 
   //%%%%%%%%%%%%%%%%%%% TYPEDEFS %%%%%%%%%%%%%%%%%%%
 
   // dimension of input image (and phi)
-  const   unsigned int   Dimension = 3;
+  const   unsigned int   Dimension = 2;
 
   // scalar field type
   typedef double                              PixelType;
@@ -59,31 +56,15 @@ int main( int argc, char ** argv )
   // writer
   typedef itk::ImageFileWriter< ImageType >   WriterType;
 
-  // take the gradient of the input image
-  typedef itk::RecursiveGaussianImageFilter< ImageType,ImageType>
-          GaussianFilterType;
-
-  // take abs of the gradient
-  typedef itk::AbsImageFilter< ImageType,ImageType>
-      AbsFilterType;
-
-  // multiply by b
-  typedef itk::MultiplyByConstantImageFilter< ImageType, PixelType, ImageType >
-      MultiplyFilterType;
-
-  // take the image at power n
-  typedef itk::PowImageFilter< ImageType, ImageType >
-      PowerFilterType;
-
-  // 1 + image
-  typedef itk::AddConstantToImageFilter< ImageType, PixelType, ImageType >
-      AddConstantFilterType;
-
+  typedef itk::NucleusEdgeDetectorFilter<ImageType,ImageType>
+      NucleusEdgeFilterType;
+  typedef itk::MembraneEdgeDetectorFilter<ImageType,ImageType>
+      MembraneEdgeFilterType;
 
 
   //%%%%%%%%%%%%%%%%%%% INPUT READING %%%%%%%%%%%%%%%%%%%
 
-  // reading filtered input
+  // reading input
   ReaderType::Pointer reader = ReaderType::New();
   reader->SetFileName( argv[1] );
   try
@@ -98,63 +79,32 @@ int main( int argc, char ** argv )
     }  
 
 
-  //%%%%%%%%%%%%%%%%%%% EDGE DETECTION %%%%%%%%%%%%%%%%%%%
-  GaussianFilterType::Pointer gaussianX = GaussianFilterType::New();
-  gaussianX->SetInput(reader->GetOutput());
-  gaussianX->SetSigma(sigma);
-  gaussianX->SetDirection(0);
-  gaussianX->SetOrder( GaussianFilterType::ZeroOrder );
-
-  GaussianFilterType::Pointer gaussianY = GaussianFilterType::New();
-  gaussianY->SetInput(gaussianX->GetOutput());
-  gaussianY->SetSigma(sigma);
-  gaussianY->SetDirection(1);
-  gaussianY->SetOrder( GaussianFilterType::ZeroOrder );
-
-  GaussianFilterType::Pointer gaussianZ = GaussianFilterType::New();
-  gaussianY->SetInput(gaussianY->GetOutput());
-  gaussianY->SetSigma(sigma);
-  gaussianY->SetDirection(2);
-  gaussianY->SetOrder( GaussianFilterType::ZeroOrder );
-
-  AbsFilterType::Pointer absolute = AbsFilterType::New();
-  absolute->SetInput(gaussianZ->GetOutput());
-
-  MultiplyFilterType::Pointer multiply =  MultiplyFilterType::New();
-  multiply->SetInput(absolute->GetOutput());
-  multiply->SetConstant(1/b);
-
-  PowerFilterType::Pointer power = PowerFilterType::New();
-  power->SetInput(multiply->GetOutput());
-  power->SetPower(n);
-
-  AddConstantFilterType::Pointer addConstant = AddConstantFilterType::New();
-  addConstant->SetInput(power->GetOutput());
-  addConstant->SetConstant(1);
-
-  addConstant->Update();
-
-  PowerFilterType::Pointer inverse = PowerFilterType::New();
-  inverse->SetInput(addConstant->GetOutput());
-  inverse->SetPower(-1);
-
-
-#ifdef _DEBUG
-  // see when we are done iterating
-  std::cout << "end of iteration loop" << std::endl;
-  // make sure smart pointers are smart
-  std::cout << "inputphi reference count : "
-            << inputphi->GetReferenceCount()
-            << std::endl;
-  std::cout << "output reference count : "
-            << outputphi->GetReferenceCount()
-            << std::endl;
-#endif
+  // edge filters
+  NucleusEdgeFilterType::Pointer nucEdgeFilter = NucleusEdgeFilterType::New();
+  MembraneEdgeFilterType::Pointer meEdgeFilter = MembraneEdgeFilterType::New();
+  // writer
+  WriterType::Pointer writer = WriterType::New();
+  if (detectortype == 0)
+    {
+    nucEdgeFilter->SetInput(reader->GetOutput());
+    nucEdgeFilter->SetBeta((double)b);
+    nucEdgeFilter->SetSigma((double)sigma);
+    nucEdgeFilter->SetPow((double)n);
+    nucEdgeFilter->Update();
+    writer->SetInput(nucEdgeFilter->GetOutput());
+    }
+  else
+    {
+    meEdgeFilter->SetInput(reader->GetOutput());
+    meEdgeFilter->SetBeta((double)b);
+    meEdgeFilter->SetSigma((double)sigma);
+    meEdgeFilter->SetPow((double)n);
+    meEdgeFilter->Update();
+    writer->SetInput(meEdgeFilter->GetOutput());
+    }
 
   // write output
-  WriterType::Pointer writer = WriterType::New();
-  writer->SetFileName( argv[5] );
-  writer->SetInput(inverse->GetOutput());
+  writer->SetFileName( argv[6] );
   try
     {
     writer->Update();

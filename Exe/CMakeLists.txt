@@ -1,14 +1,12 @@
 SET( CONFOREG_EXE_ITK_SRC
   Subjective2D
-  Subjective2DVideo
   Subjective
-  SubjectiveNuc
+  Subjective2DVideo
   Feature2D
   Feature
   Initialize2D
   Initialize
-GeodesicDiffusion
-  Initest
+  GeodesicDiffusion
   )
 
 FOREACH( var ${CONFOREG_EXE_ITK_SRC} )
