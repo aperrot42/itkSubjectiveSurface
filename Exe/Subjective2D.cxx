@@ -90,7 +90,7 @@ int main( int argc, char ** argv )
   // rescale phi0
   RescaleFilterType::Pointer rescalerInputPhy = RescaleFilterType::New();
   rescalerInputPhy->SetOutputMinimum( 0.01671 );
-  rescalerInputPhy->SetOutputMaximum( 2.0241 ); // value taken from matlab
+  rescalerInputPhy->SetOutputMaximum( 10000 ); // value taken from matlab
   rescalerInputPhy->SetInput(reader->GetOutput());
   rescalerInputPhy->Update();
   // pointer to phi
@@ -110,7 +110,7 @@ int main( int argc, char ** argv )
     return -1;
     }
   // pointer to the feature image
-  ImageType::Pointer inputfeature = rescalerInputPhy->GetOutput();
+  ImageType::Pointer inputfeature = readerFeature->GetOutput();
 
 
 
