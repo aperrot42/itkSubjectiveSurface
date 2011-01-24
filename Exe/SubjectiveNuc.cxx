@@ -140,7 +140,7 @@ int main( int argc, char ** argv )
   EdgeFilterType::Pointer edgeFilter = EdgeFilterType::New();
   edgeFilter->SetInput(readerImage->GetOutput());
   edgeFilter->SetBeta((double)255);
-  edgeFilter->SetSigma((double)0.2);
+  edgeFilter->SetSigma((double)1.);
   edgeFilter->SetPow((double)1);
   edgeFilter->Update();
 
@@ -165,7 +165,7 @@ int main( int argc, char ** argv )
 RescaleOutputFilterType::Pointer rescaler = RescaleOutputFilterType::New();
 rescaler->SetOutputMinimum(   0 );
 rescaler->SetOutputMaximum( 255 );
-rescaler->SetInput(edgeFilter->GetOutput());
+rescaler->SetInput(SubjSurfFilter->GetOutput());
 
 // write output in png
 WriterType::Pointer writer = WriterType::New();

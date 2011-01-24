@@ -8,6 +8,7 @@ SET( CONFOREG_EXE_ITK_SRC
   Initialize2D
   Initialize
 GeodesicDiffusion
+  Initest
   )
 
 FOREACH( var ${CONFOREG_EXE_ITK_SRC} )

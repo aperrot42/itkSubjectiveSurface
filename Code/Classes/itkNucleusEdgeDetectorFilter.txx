@@ -22,13 +22,12 @@ NucleusEdgeDetectorFilter< TInputImage, TOutputImage >
 
   m_MultiplyFilter = MultiplyFilterType::New();
 
-  m_PowerFilter = PowerFilterType::New();
-
-  m_AddCstFilter = AddConstantFilterType::New();
-  m_AddCstFilter->SetConstant(1);
-
   m_InvertFilter = PowerFilterType::New();
   m_InvertFilter->SetPower(-1);
+
+  m_RescaleFilter = RescaleFilterType::New();
+
+  m_AddCstFilter = AddConstantFilterType::New();
 }
 
 
@@ -45,20 +44,18 @@ GenerateData()
 
   m_AbsFilter->SetInput(m_GradientGaussianFilter->GetOutput());
 
-  m_MultiplyFilter->SetInput( m_AbsFilter->GetOutput() );
-  m_MultiplyFilter->SetConstant( 1/m_Beta );
+  m_RescaleFilter->SetInput(m_AbsFilter->GetOutput());
+  m_RescaleFilter->SetOutputMinimum( 0. );
+  m_RescaleFilter->SetOutputMaximum( 1. );
 
-  m_PowerFilter->SetInput( m_MultiplyFilter->GetOutput() );
-  m_PowerFilter->SetPower( m_Pow);
+  m_MultiplyFilter->SetInput( m_RescaleFilter->GetOutput() );
+  m_MultiplyFilter->SetConstant( -1. );
 
-  m_AddCstFilter->SetInput( m_PowerFilter->GetOutput() );
+  m_AddCstFilter->SetInput(m_MultiplyFilter->GetOutput());
+  m_AddCstFilter->SetConstant( 1. );
   m_AddCstFilter->Update();
 
-  m_InvertFilter->SetInput( m_AddCstFilter->GetOutput() );
-  m_InvertFilter->Update();
-
-
-  this->GraftOutput( m_InvertFilter->GetOutput() );
+  this->GraftOutput( m_AddCstFilter->GetOutput() );
 
 }
 

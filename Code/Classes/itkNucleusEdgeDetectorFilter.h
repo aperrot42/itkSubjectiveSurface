@@ -13,7 +13,7 @@
 #include "itkPowImageFilter.h"
 #include "itkMultiplyByConstantImageFilter.h"
 #include "itkAddConstantToImageFilter.h"
-
+#include "itkRescaleIntensityImageFilter.h"
 
 namespace itk
 {
@@ -96,6 +96,8 @@ protected:
   // 1 + image
   typedef AddConstantToImageFilter< TOutputImage, OutputPixelType, TOutputImage>
       AddConstantFilterType;
+  typedef itk::RescaleIntensityImageFilter< TInputImage,TOutputImage>
+      RescaleFilterType;
 
 
   typename GradientGaussianFilterType::Pointer    m_GradientGaussianFilter;
@@ -104,6 +106,7 @@ protected:
   typename PowerFilterType::Pointer       m_PowerFilter,
                                           m_InvertFilter;
   typename AddConstantFilterType::Pointer m_AddCstFilter;
+  typename RescaleFilterType::Pointer     m_RescaleFilter;
   OutputPixelType m_Beta;
   OutputPixelType m_Sigma;
   int m_Pow;
